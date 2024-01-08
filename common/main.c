@@ -68,6 +68,10 @@ void main_loop(void)
     printf("meta-sol ref YOCTO_SOL_REF\n");
     fs_set_blk_dev("mmc", "0:1", FS_TYPE_EXT);
 
+    // Collecting file offsets:
+    // There are four files and four hashes per partition (no rootfs at this stage), and each is placed one after the other.
+    // Info file starts at zero offset (mem addr 0xa5000000) and is 1 block long (512 bytes). Hashes are also one block. The remaining files (excluding rootfs) have their 
+    // offsets and sizes defined in the "BLOB Stuff" section of the machine configuration in Yocto
     ulong file_offset[8] = {YOCTO_INFO_FILE_OFFSET, YOCTO_INFO_HASH_OFFSET,
                             YOCTO_IMAGE_FILE_OFFSET, YOCTO_IMAGE_HASH_OFFSET,
                             YOCTO_DTB_FILE_OFFSET, YOCTO_DTB_HASH_OFFSET,
@@ -85,6 +89,8 @@ void main_loop(void)
     sizes[0] = YOCTO_INFO_BYTES * 4; //info file, 4 filesizes
     char *safe = "s=----";
 
+if (YOCTO_SOL_ENABLE_TMR) {
+     
     printf("TMRing info files\n");
     if(
         tmr_blob(
@@ -111,6 +117,11 @@ void main_loop(void)
     for (int i = 1; i < 4; i ++) {
         printf("TMRing file #%d of size %lu\n", i, sizes[i]);
         if(
+            // Replace this with 
+            // outputs[i] 
+            // part_offset[0] first partition
+            // file_offset[xxx] start of first file
+            
             !tmr_blob(
                 part_offset[0] + file_offset[2*i],
                 part_offset[0] + file_offset[2*i+1],
@@ -124,7 +135,14 @@ void main_loop(void)
             safe[i+2] = 'x';
         }
     }
-
+} else {
+    printf("TMR DISABLED - No Hash Checks\n");
+    printf("Copying files directly to memory.\n");
+    memcpy((void *)outputs[0], (void *)part_offset[0] + file_offset[0], sizes[0]);  // Info file 
+    memcpy((void *)outputs[1], (void *)part_offset[0] + file_offset[2], sizes[1]);  // Image File
+    memcpy((void *)outputs[2], (void *)part_offset[0] + file_offset[4], sizes[2]);  // DTB File
+    memcpy((void *)outputs[3], (void *)part_offset[0] + file_offset[6], sizes[3]);  // Initrd File
+}
     // TODO: See if we can find a way to make use of bootargs
     //setenv("bootargs", safe);
     char bootargs[CONFIG_SYS_CBSIZE];
